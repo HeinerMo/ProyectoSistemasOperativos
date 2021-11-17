@@ -1,4 +1,4 @@
-start: initializer consumer producer
+start: initializer consumer producer finisher
 
 
 initializer: initializer.c
@@ -12,3 +12,7 @@ consumer: consumer.c
 producer: producer.c
 	@echo "Compilando producer..."
 	gcc -o producer producer.c
+
+finisher: finisher.c
+	@echo "Compilando finisher..."
+	gcc -o finisher finisher.c
