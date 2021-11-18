@@ -1,4 +1,4 @@
-start: initializer consumer producer finisher
+start: initializer consumer producer finisher create read write
 
 
 initializer: initializer.c
@@ -16,3 +16,15 @@ producer: producer.c
 finisher: finisher.c
 	@echo "Compilando finisher..."
 	gcc -o finisher finisher.c
+
+create: create.c
+	@echo "Compilando create..."
+	gcc -o create create.c -lrt
+
+read: read.c
+	@echo "Compilando read..."
+	gcc -o read read.c -lrt
+
+write: write.c
+	@echo "Compilando write..."
+	gcc -o write write.c -lrt
