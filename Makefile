@@ -3,7 +3,7 @@ start: initializer consumer producer finisher
 
 initializer: initializer.c
 	@echo "Compilando inicializador..."
-	gcc -o initializer initializer.c
+	gcc -o initializer initializer.c -lrt
 
 consumer: consumer.c
 	@echo "Compilando consumer..."
