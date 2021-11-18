@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <semaphore.h>
+#include "semaphore.h"
 #include <string.h>
 #include <stdlib.h>
 #include <sys/mman.h>
@@ -20,11 +20,26 @@
 // -s [buffer size]
 // -n [buffer name]
 
-#define SIZEOF_SMOBJ 200
+#define SIZEOF_SMOBJ 200 //TODO reemplazar esto
+#define PRODUCER_SEMAPHORE_NAME "/producerSemaphore"
+#define CONSUMER_SEMAPHORE_NAME "/consumerSemaphore"
 char * buffName;
 int buffSize;
 
 void checkParameters(int argc, char *argv[]){
+
+	//If the user enters -help show the argument sintax	
+	if (argc > 1 && strcmp(argv[1], "-help") == 0) {
+		puts("Parameters: \n -n \"buffer name\" -s \"[buffer size]\"");
+		exit(1);
+	} // if
+
+	//if there are too few arguments exit
+	if (argc < 5) {
+		puts("ERROR: Too few arguments. Type -help to get the list of parameters");
+		exit(1);
+	} // if
+
 
 	for (int i = 1; i < argc; i++) {
 		//printf("Valor %i: %s\n", i, argv[i]); 
@@ -54,7 +69,7 @@ void createSharedMemory () {
 	   exit(1);
    	} // if
    	
-	   if(-1 == ftruncate(fd, SIZEOF_SMOBJ)) {
+	   if(-1 == ftruncate(fd, SIZEOF_SMOBJ)) { //TODO cambiar por vector
        printf("Error shared memory cannot be resized \n");
 	   exit(1);
    	} // if
@@ -63,27 +78,23 @@ void createSharedMemory () {
 
 } // Fin de createSharedMemory
 
+
+void createSemaphores() {
+	//Producer semaphore
+	sem_t *producerSemaphore = sem_open(PRODUCER_SEMAPHORE_NAME, O_CREAT, 0644, buffSize); //TODO crear vector con buffsize
+	sem_t *consumerSemaphore = sem_open(CONSUMER_SEMAPHORE_NAME, O_CREAT, 0644, 0);	
+}
+
 int main(int argc, char *argv[]) {
+
+	//Decode arguments
+	checkParameters(argc, argv);
+	createSharedMemory();
+	createSemaphores();
 
 	puts("Initializer.c running...");
 	pid_t pid = getpid();//Get process PID
 	printf("pid: %u\n", pid);//prints PID
-
-	//If the user enters -help show the argument sintax	
-	if (strcmp(argv[1], "-help") == 0) {
-		puts("Parameters: \n -n \"buffer name\" -s \"[buffer size]\"");
-		return 0;
-	} // if
-
-	//if there are too few arguments exit
-	if (argc < 5) {
-		puts("ERROR: Too few arguments. Type -help to get the list of parameters");
-		return 1;
-	} // if
 	
-	//Decode arguments
-	checkParameters(argc, argv);
-	createSharedMemory();
-
 	return 0;
 } // Fin de main
