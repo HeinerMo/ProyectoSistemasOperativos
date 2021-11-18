@@ -15,15 +15,16 @@
 #include <errno.h>
 #include <string.h>
  
-#define SMOBJ_NAME  "prueba"
 
-int main(void)
+
+int main(int argc, char *argv[]) 
 {
+   char *buffname= argv[1]; //bufferName
    int fd;
    char *ptr;
    struct stat shmobj_st;
    
-   fd = shm_open (SMOBJ_NAME,  O_RDONLY  , 00400); /* open s.m object*/
+   fd = shm_open (buffname,  O_RDONLY  , 00400); /* open s.m object*/
    if(fd == -1)
    {
        printf("Error file descriptor %s\n", strerror(errno));

@@ -15,15 +15,18 @@
 #include <errno.h>
 #include <string.h>
  
-#define SMOBJ_NAME  "prueba"
 
-int main(void)
+
+int main(int argc, char *argv[]) 
 {
+
+
+   char *buffname=argv[1]; //bufferName
    int fd;
    char buf[] = "Hello,this is writting process";
    char *ptr;
    
-   fd = shm_open (SMOBJ_NAME,  O_RDWR  , 00200); /* open s.m object*/
+   fd = shm_open (buffname,  O_RDWR  , 00200); /* open s.m object*/
    if(fd == -1)
    {
        printf("Error file descriptor %s\n", strerror(errno));
