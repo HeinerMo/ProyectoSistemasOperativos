@@ -20,7 +20,6 @@
 // -s [buffer size]
 // -n [buffer name]
 
-#define SIZEOF_SMOBJ 200 //TODO reemplazar esto
 #define PRODUCER_SEMAPHORE_NAME "/producerSemaphore"
 #define CONSUMER_SEMAPHORE_NAME "/consumerSemaphore"
 char * buffName;
@@ -49,7 +48,7 @@ void checkParameters(int argc, char *argv[]){
 				//printf("Buffer size: %d", buffSize);
 			} // if
 		} // if
-		
+
 		if (strcmp(argv[i], "-n") == 0) {
 			if (argv[i+1] != NULL) {
 				buffName = argv[i+1];
@@ -60,41 +59,49 @@ void checkParameters(int argc, char *argv[]){
 
 } // Fin de checkParameters
 
-void createSharedMemory () {
+void createSharedMemory (char *buffer) {
 
 	int fd;
-   	fd = shm_open (buffName, O_CREAT | O_RDWR  , 00700); /* create s.m object*/
-   	if(fd == -1) {
-       printf("Error file descriptor \n");
-	   exit(1);
-   	} // if
-   	
-	   if(-1 == ftruncate(fd, SIZEOF_SMOBJ)) { //TODO cambiar por vector
-       printf("Error shared memory cannot be resized \n");
-	   exit(1);
-   	} // if
-   
-   	close(fd);
+	fd = shm_open (buffName, O_CREAT | O_RDWR  , 00700); /* create s.m object*/
+	if(fd == -1) {
+		printf("Error file descriptor \n");
+		exit(1);
+	} // if
+
+	if(-1 == ftruncate(fd, sizeof(buffer))) {
+		printf("Error shared memory cannot be resized \n");
+		exit(1);
+	} // if
+
+	close(fd);
 
 } // Fin de createSharedMemory
 
 
 void createSemaphores() {
 	//Producer semaphore
-	sem_t *producerSemaphore = sem_open(PRODUCER_SEMAPHORE_NAME, O_CREAT, 0644, buffSize); //TODO crear vector con buffsize
+	sem_t *producerSemaphore = sem_open(PRODUCER_SEMAPHORE_NAME, O_CREAT, 0644, buffSize);
 	sem_t *consumerSemaphore = sem_open(CONSUMER_SEMAPHORE_NAME, O_CREAT, 0644, 0);	
 }
 
 int main(int argc, char *argv[]) {
-
+	
 	//Decode arguments
 	checkParameters(argc, argv);
-	createSharedMemory();
+
+	//Create local buffer pointer
+	char buffer[buffSize];
+
+	//Create shared resouces
+	createSharedMemory(buffer);
 	createSemaphores();
 
+	//print process info
 	puts("Initializer.c running...");
 	pid_t pid = getpid();//Get process PID
-	printf("pid: %u\n", pid);//prints PID
-	
+	printf("Buffer name: %s", buffName);
+	printf("Buffer size: %i\n", buffSize);
+
+
 	return 0;
 } // Fin de main
