@@ -14,6 +14,9 @@
 #include <sys/types.h>
 #include <errno.h>
 #include <string.h>
+#include "semaphore.h"
+#define PRODUCER_SEMAPHORE_NAME "/producerSemaphore"
+#define CONSUMER_SEMAPHORE_NAME "/consumerSemaphore"
 
 struct BufferData {
 	char producerID[50];
@@ -70,16 +73,23 @@ int main(int argc, char *argv[]) {
 
 	int fd = shm_open(buffName, O_RDWR, 00200); /* open s.m object*/
 
+	//Open semaphores
 
-
+	sem_t *consumers = sem_open(CONSUMER_SEMAPHORE_NAME, O_CREAT, 0644, 3);
+	sem_t *producers = sem_open(PRODUCER_SEMAPHORE_NAME, O_CREAT, 0644, 3);
 
 	while (1) {
+		sem_wait(producers);
+		//begining critical region
 		char buf[lenght];
 		printf("%s", "Enter some text: ");
 		fgets(buf, lenght, stdin);
 		endLine(buf, lenght);
 		char *ptr = writeProcess(fd, buf);
+		//end critical region
+		sem_post(consumers);
 		printf("%s \n",ptr);
+
 	} // while
 
 	close(fd);

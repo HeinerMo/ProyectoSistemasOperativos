@@ -14,6 +14,11 @@
 #include <sys/types.h>
 #include <errno.h>
 #include <string.h>
+#include "semaphore.h"
+
+#define PRODUCER_SEMAPHORE_NAME "/producerSemaphore"
+#define CONSUMER_SEMAPHORE_NAME "/consumerSemaphore"
+
 
 struct BufferData {
 	char producerID[50];
@@ -21,6 +26,15 @@ struct BufferData {
 	char time[20];
 	int number;
 };
+
+struct GlobalData {
+	int lastConsumed;
+	int lastProduced;
+	int activeProducers;
+	int activeConsumers;
+	int produce;
+};
+
 
 
 void endLine(char *message, int length) { //FIXME Borrar
@@ -74,9 +88,6 @@ int main(int argc, char *argv[]) {
 	/*TODO
 	  Parámetros
 	  Puntero de consumidor
-	  Semáforos
-
-	 
 	 */
 	int lenght = 2048;
 	char buffName[lenght];
@@ -86,13 +97,28 @@ int main(int argc, char *argv[]) {
 
 	int fd = shm_open(buffName, O_RDONLY, 00400); /* open s.m object*/
 
-	while (1) {
 
+	//Open semaphores
+
+	sem_t *consumers = sem_open(CONSUMER_SEMAPHORE_NAME, O_CREAT, 0644, 3);
+	sem_t *producers = sem_open(PRODUCER_SEMAPHORE_NAME, O_CREAT, 0644, 3);
+
+
+
+	//Prueba
+	//struct GlobalData *globalData;
+	//globalData = mmap(NULL, shmobj_st.st_size, PROT_READ, MAP_SHARED, fd, 0);
+	
+
+	while (1) {
+		sem_wait(consumers);
+
+		//inicio región crítica
 		char* ptr = readProcess(fd);
 		printf("%s \n", ptr);
+		//fin región crítica
 
-		sleep(2);
-
+		sem_post(producers);
 	} // while
 
 	close(fd);
