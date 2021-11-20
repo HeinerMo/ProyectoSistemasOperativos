@@ -15,6 +15,7 @@
 #include <sys/stat.h>        /* For mode constants */
 #include <fcntl.h>           /* For O_* constants */
 #include <sys/types.h>
+#include <errno.h>
 
 // Arguments:
 // -s [buffer size]
@@ -24,6 +25,21 @@
 #define CONSUMER_SEMAPHORE_NAME "/consumerSemaphore"
 char * buffName;
 int buffSize;
+
+struct BufferData {
+	char producerID[50];
+	char date[20];
+	char time[20];
+	int number;
+};
+
+struct GlobalData {
+	int lastConsumed;
+	int lastProduced;
+	int activeProducers;
+	int activeConsumers;
+	int produce;
+};
 
 void checkParameters(int argc, char *argv[]){
 
@@ -59,7 +75,7 @@ void checkParameters(int argc, char *argv[]){
 
 } // Fin de checkParameters
 
-void createSharedMemory (char *buffer) {
+void createSharedMemory (struct BufferData *buffer) {
 
 	int fd;
 	fd = shm_open (buffName, O_CREAT | O_RDWR  , 00700); /* create s.m object*/
@@ -77,6 +93,40 @@ void createSharedMemory (char *buffer) {
 
 } // Fin de createSharedMemory
 
+void createGlobalData() {
+
+	struct GlobalData *data;
+	data->produce = 1;
+
+	int fd;
+	fd = shm_open ("GlobalData", O_CREAT | O_RDWR  , 00700); /* create s.m object*/
+	if(fd == -1) {
+		printf("Error file descriptor \n");
+		exit(1);
+	} // if
+
+	if(-1 == ftruncate(fd, sizeof(data))) {
+		printf("Error shared memory cannot be resized \n");
+		exit(1);
+	} // if
+	
+	struct GlobalData *aux;
+
+	aux = mmap(NULL, sizeof(data), PROT_WRITE, MAP_SHARED, fd, 0);
+
+	if (data == MAP_FAILED) {
+		printf("Map failed in write process: %s\n", strerror(errno));
+		exit(1);	
+	}
+
+	memcpy(aux, data, sizeof(data));
+
+
+	close(fd);
+
+
+}//end createGlobalData
+
 
 void createSemaphores() {
 	//Producer semaphore
@@ -90,18 +140,19 @@ int main(int argc, char *argv[]) {
 	checkParameters(argc, argv);
 
 	//Create local buffer pointer
-	char buffer[buffSize];
+	struct BufferData buffer[buffSize];
 
 	//Create shared resouces
 	createSharedMemory(buffer);
 	createSemaphores();
+	createGlobalData();
 
-	//print process info
+	//print process information
 	puts("Initializer.c running...");
 	pid_t pid = getpid();//Get process PID
 	printf("Buffer name: %s", buffName);
 	printf("Buffer size: %i\n", buffSize);
-
+	printf("sizeof(buffer) %i\n", sizeof(buffer));
 
 	return 0;
 } // Fin de main
