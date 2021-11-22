@@ -27,11 +27,12 @@ char * buffName;
 int buffSize;
 
 struct BufferData {
-	char producerID[50];
-	char date[20];
-	char time[20];
+	long producerID;
+	char date[80];
 	int number;
+	char message[1024];
 };
+
 
 struct GlobalData {
 	int lastConsumed;

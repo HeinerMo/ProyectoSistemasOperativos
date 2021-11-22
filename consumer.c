@@ -72,7 +72,7 @@ char* readProcess (int fd) {
 		exit(1);
 	}
 
-	int index = 0; //TODO cargar el puntero de los consumidores de la memoria
+	int index = 0; //TODO obtener puntero para memoria circuar y calcular índice
 	aux = &buffer[index]; 
 	char data[2048];
 
@@ -86,7 +86,7 @@ char* readProcess (int fd) {
 int main(int argc, char *argv[]) {
 
 	/*TODO
-	  Parámetros
+	  Parámetros (Nombre buffer)
 	  Puntero de consumidor
 	 */
 	int lenght = 2048;
@@ -108,7 +108,16 @@ int main(int argc, char *argv[]) {
 	//Prueba
 	//struct GlobalData *globalData;
 	//globalData = mmap(NULL, shmobj_st.st_size, PROT_READ, MAP_SHARED, fd, 0);
+	struct GlobalData *globalData;
+	int globalDataDescriptor = shm_open("GlobalData", O_RDWR, 00600);	
 	
+	globalData = mmap(NULL, sizeof(globalData), PROT_WRITE, MAP_SHARED, globalDataDescriptor, 0);	
+
+	printf("GlobalData->lastConsumed: %i\n", globalData->lastConsumed);
+	printf("GlobalData->lastProduced: %i\n", globalData->lastProduced);
+	printf("GlobalData->activeProducers: %i\n", globalData->activeProducers);
+	printf("GlobalData->activeConsumers: %i\n", globalData->activeConsumers);
+	printf("GlobalData->produce: %i\n", globalData->produce);
 
 	while (1) {
 		sem_wait(consumers);
