@@ -153,7 +153,7 @@ int main(int argc, char *argv[]) {
 	pid_t pid = getpid();//Get process PID
 	printf("Buffer name: %s", buffName);
 	printf("Buffer size: %i\n", buffSize);
-	printf("sizeof(buffer) %i\n", sizeof(buffer));
+	printf("sizeof(buffer) %li\n", sizeof(buffer));
 
 	return 0;
 } // Fin de main
