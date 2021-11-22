@@ -115,21 +115,26 @@ void writeProcess(int fd, struct BufferData *toWrite) {
 		exit(1);
 	}
 	
-
-	int globalDataDescriptor = shm_open("GlobalData", O_RDONLY, 00600);
+	int globalDataDescriptor = shm_open("GlobalData", O_RDWR, 00600);
 	struct GlobalData *globalData = loadGlobalData(globalDataDescriptor);
-	memcpy(&globalData->lastProduced, &(globalData->lastProduced + 1), sizeof(globalData->lastProduced));
+	int i = globalData->lastProduced;
+	i++;
+	printf("Cantidad producida: %i\n", i);
+
+	memcpy(&globalData->lastProduced, &i, sizeof(i));
+
+//	printf("last: %i", globalData->lastProduced);
 
 
-	memcpy(buffer[globalData->lastProduced], toWrite, sizeof(buffer));
+	puts("here");
+	memcpy(buffer, toWrite, sizeof(buffer));
 
 } // End of writeProcess
 
 int main(int argc, char *argv[]) {
 	/*TODO
 		Subir producto a memoria compartida
-
-		Recibir nombre por parácompartida
+		Recibir nombre por parámetro
 	 */
 
 	srand(time(NULL)); //Change random number seed
