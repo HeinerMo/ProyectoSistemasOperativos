@@ -1,4 +1,4 @@
-//Producer.c y
+//Producer.c
 //Authors: 
 //	Heiner Monge.
 //	Antoni Seas.
