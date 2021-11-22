@@ -47,11 +47,11 @@ void endLine(char *message, int length) {
 
 
 struct BufferData *produce(char message[1024]) {
-	struct BufferData *bd;
+	struct BufferData *auxBufferData;
 
 	char *aux = strdup(message);
-	strcpy(bd->message, message);
-	bd->producerID = getpid();
+	strcpy(auxBufferData->message, message);
+	auxBufferData->producerID = getpid();
 
 	//using UNIX Epoch
 	time_t now;
@@ -61,67 +61,71 @@ struct BufferData *produce(char message[1024]) {
 	ts = *localtime(&now);
 	strftime(currentTime, sizeof(currentTime), "%d-%m-%Y %H:%M:%S", &ts);
 
-	strcpy(bd->date, currentTime);
+	strcpy(auxBufferData->date, currentTime);
 
-	bd->number  = rand() % 7;
+	auxBufferData->number  = rand() % 7;
 
-	printf("PID: %d\n", bd->producerID);
-	printf("Date: %s\n", &bd->date);
-	printf("Number: %i\n", bd->number);
-	printf("Message: %s\n", &bd->message);
-}
+	return auxBufferData;
+} // End of produce
 
 struct GlobalData *loadGlobalData(int globalDataDescriptor) {
 
-    struct GlobalData *globalData;
-    struct stat shmobj_st;
+	struct GlobalData *globalData;
 
-    if (globalDataDescriptor == -1)
-    {
-        printf("Error file descriptor %s\n", strerror(errno));
-        exit(1);
-    }
+   	if (globalDataDescriptor == -1) {
+    	printf("Error file descriptor %s\n", strerror(errno));
+      	exit(1);
+   	}
 
-    if (fstat(globalDataDescriptor, &shmobj_st) == -1)
-    {
-        printf(" error fstat \n");
-        exit(1);
-    }
-
-    globalData = mmap(NULL, shmobj_st.st_size, PROT_READ, MAP_SHARED, globalDataDescriptor, 0);
-    if (globalData == MAP_FAILED)
-    {
-        printf("Map failed in read process: %s\n", strerror(errno));
-        exit(1);
-    }
+   	globalData = mmap(NULL, sizeof(globalData), PROT_WRITE, MAP_SHARED, globalDataDescriptor, 0);
+   	if (globalData == MAP_FAILED) {
+      	printf("Map failed in write process: %s\n", strerror(errno));
+      	exit(1);
+   	}
 
     return globalData;
 
 } // End of loadGlobalData
 
-void writeProcess(int fd, struct BufferData *toWrite) {
+struct BufferData *loadBufferData(int bufferDataDescriptor) {
 
-	struct BufferData *buffer;
+	struct BufferData *bufferData;
+
+   	if (bufferDataDescriptor == -1) {
+    	printf("Error file descriptor %s\n", strerror(errno));
+      	exit(1);
+   	}
+
+   	bufferData = mmap(NULL, sizeof(bufferData), PROT_WRITE, MAP_SHARED, bufferDataDescriptor, 0);
+   	if (bufferData == MAP_FAILED) {
+      	printf("Map failed in write process: %s\n", strerror(errno));
+      	exit(1);
+   	}
+
+    return bufferData;
+
+} // End of loadBufferData
+
+void writeProcess(struct BufferData *bufferData, struct GlobalData *globalData, struct BufferData *toWrite) {
 	
+	int index = globalData->lastProduced; // CORREGIR PUNTEROS PARA LO DEL "COSO" CIRCULAR
 
-	if (fd == -1) {
-		printf("Error file descriptor %s\n", strerror(errno));
-		exit(1);
-	}
+	struct BufferData *auxBufferData = &bufferData[index];
 
-	buffer = mmap(NULL, sizeof(toWrite), PROT_WRITE, MAP_SHARED, fd, 0);
-	if (buffer == MAP_FAILED) {
-		printf("Map failed in write process: %s\n", strerror(errno));
-		exit(1);
-	}
-	
+	auxBufferData->producerID = toWrite->producerID;
+	strcpy(auxBufferData->date, toWrite->date);
+	auxBufferData->number = toWrite->number;
+	strcpy(auxBufferData->message, toWrite->message);
 
-	int globalDataDescriptor = shm_open("GlobalData", O_RDONLY, 00600);
-	struct GlobalData *globalData = loadGlobalData(globalDataDescriptor);
-	memcpy(&globalData->lastProduced, &(globalData->lastProduced + 1), sizeof(globalData->lastProduced));
+	struct BufferData *auxBufferDataDos = &bufferData[index]; // BORRAR
+	printf("PID: %ld\n", auxBufferDataDos->producerID); // BORRAR
+	printf("Date: %s\n", strdup(auxBufferDataDos->date)); // BORRAR
+	printf("Number: %i\n", auxBufferDataDos->number); // BORRAR
+	printf("Message: %s\n", strdup(auxBufferDataDos->message)); // BORRAR
 
+	globalData->lastProduced = (globalData->lastProduced + 1) % 2; // CAMBIAR EL MOD AL TAMAÑO QUE TENGA EL BUFFER;
 
-	memcpy(buffer[globalData->lastProduced], toWrite, sizeof(buffer));
+   	// NO ES NECESARIO USAR memcpy PARA ACTUALIZAR LOS CAMBIOS PORQUE YA SE LE ESTÁ REALIZANDO A LA POSICIÓN DE MEMORIA
 
 } // End of writeProcess
 
@@ -139,9 +143,12 @@ int main(int argc, char *argv[]) {
 	fgets(buffName, lenght, stdin);
 	endLine(buffName, lenght);
 
-	int fd = shm_open(buffName, O_RDWR, 00200); /* open s.m object*/
-	//Open semaphores
+	int bufferDataDescriptor = shm_open(buffName, O_RDWR, 00200); /* open s.m object*/
+	int globalDataDescriptor = shm_open("GlobalData", O_RDWR, 00200);
+	struct BufferData *bufferData = loadBufferData(bufferDataDescriptor);
+	struct GlobalData *globalData = loadGlobalData(globalDataDescriptor);
 
+	//Open semaphores
 	sem_t *consumers = sem_open(CONSUMER_SEMAPHORE_NAME, O_CREAT, 0644, 3);
 	sem_t *producers = sem_open(PRODUCER_SEMAPHORE_NAME, O_CREAT, 0644, 3);
 
@@ -152,12 +159,12 @@ int main(int argc, char *argv[]) {
 		printf("%s", "Enter some text: ");
 		fgets(buf, lenght, stdin);
 		endLine(buf, lenght);
-		writeProcess(fd, produce(buf));
+		writeProcess(bufferData, globalData, produce(buf));
 		//end critical region
 		sem_post(consumers);
 	} // while
 
-	close(fd);
+	close(bufferDataDescriptor);
 
 	return 0;
 } // End of Class
