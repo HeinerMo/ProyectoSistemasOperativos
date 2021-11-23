@@ -33,6 +33,7 @@ struct GlobalData {
 	int activeProducers;
 	int activeConsumers;
 	int produce;
+	int bufferSize;
 };
 
 void endLine(char *message, int length) { //FIXME Borrar
@@ -74,31 +75,22 @@ struct BufferData *loadBufferData (int bufferDataDescriptor) {
 
 } // End of loadBufferData
 
-struct GlobalData *loadGlobalData (int globalDataDescriptor) {
+struct GlobalData *loadGlobalData(int globalDataDescriptor) {
 
 	struct GlobalData *globalData;
-	struct stat shmobj_st;
 
-	if (globalDataDescriptor == -1)
-	{
-		printf("Error file descriptor %s\n", strerror(errno));
-		exit(1);
-	}
+   	if (globalDataDescriptor == -1) {
+    	printf("Error file descriptor %s\n", strerror(errno));
+      	exit(1);
+   	}
 
-	if (fstat(globalDataDescriptor, &shmobj_st) == -1)
-	{
-		printf(" error fstat \n");
-		exit(1);
-	}
+   	globalData = mmap(NULL, sizeof(globalData), PROT_WRITE, MAP_SHARED, globalDataDescriptor, 0);
+   	if (globalData == MAP_FAILED) {
+      	printf("Map failed in write process: %s\n", strerror(errno));
+      	exit(1);
+   	}
 
-	globalData = mmap(NULL, shmobj_st.st_size, PROT_READ, MAP_SHARED, globalDataDescriptor, 0);
-	if (globalData == MAP_FAILED)
-	{
-		printf("Map failed in read process: %s\n", strerror(errno));
-		exit(1);
-	}
-
-	return globalData;
+    return globalData;
 
 } // End of loadGlobalData
 

@@ -32,6 +32,7 @@ struct GlobalData {
 	int activeProducers;
 	int activeConsumers;
 	int produce;
+	int bufferSize;
 };
 
 void endLine(char *message, int length) {
@@ -108,24 +109,23 @@ struct BufferData *loadBufferData(int bufferDataDescriptor) {
 
 void writeProcess(struct BufferData *bufferData, struct GlobalData *globalData, struct BufferData *toWrite) {
 	
-	int index = globalData->lastProduced; // CORREGIR PUNTEROS PARA LO DEL "COSO" CIRCULAR
-
+	globalData->lastProduced = (globalData->lastProduced + 1) % globalData->bufferSize;
+	int index = globalData->lastProduced; 
+	
 	struct BufferData *auxBufferData = &bufferData[index];
 
-	auxBufferData->producerID = toWrite->producerID;
-	strcpy(auxBufferData->date, toWrite->date);
-	auxBufferData->number = toWrite->number;
-	strcpy(auxBufferData->message, toWrite->message);
+	puts("Inicio");
+//	auxBufferData->producerID = toWrite->producerID;
+//	strcpy(auxBufferData->date, toWrite->date);
+//	auxBufferData->number = toWrite->number;
+//	strcpy(auxBufferData->message, toWrite->message);
+	puts("Fin");
 
 	struct BufferData *auxBufferDataDos = &bufferData[index]; // BORRAR
 	printf("PID: %ld\n", auxBufferDataDos->producerID); // BORRAR
 	printf("Date: %s\n", strdup(auxBufferDataDos->date)); // BORRAR
 	printf("Number: %i\n", auxBufferDataDos->number); // BORRAR
 	printf("Message: %s\n", strdup(auxBufferDataDos->message)); // BORRAR
-
-	globalData->lastProduced = (globalData->lastProduced + 1) % 2; // CAMBIAR EL MOD AL TAMAÑO QUE TENGA EL BUFFER;
-
-   	// NO ES NECESARIO USAR memcpy PARA ACTUALIZAR LOS CAMBIOS PORQUE YA SE LE ESTÁ REALIZANDO A LA POSICIÓN DE MEMORIA
 
 } // End of writeProcess
 

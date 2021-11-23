@@ -40,6 +40,7 @@ struct GlobalData {
 	int activeProducers;
 	int activeConsumers;
 	int produce;
+	int bufferSize;
 };
 
 void checkParameters(int argc, char *argv[]){
@@ -94,40 +95,35 @@ void createSharedMemory (struct BufferData *buffer) {
 
 } // Fin de createSharedMemory
 
-void createGlobalData() {
+void createGlobalData(int bufferSize) {
 
-	struct GlobalData *data;
-	data->produce = 1;
+	struct GlobalData *globalData;
 
-	int fd;
-	fd = shm_open ("GlobalData", O_CREAT | O_RDWR  , 00700); /* create s.m object*/
-	if(fd == -1) {
+	int globalDataDescriptor;
+	globalDataDescriptor = shm_open ("GlobalData", O_CREAT | O_RDWR  , 00700); /* create s.m object*/
+	if(globalDataDescriptor == -1) {
 		printf("Error file descriptor \n");
 		exit(1);
 	} // if
 
-	if(-1 == ftruncate(fd, sizeof(data))) {
+	if(-1 == ftruncate(globalDataDescriptor, sizeof(globalData))) {
 		printf("Error shared memory cannot be resized \n");
 		exit(1);
 	} // if
-	
-	struct GlobalData *aux;
 
-	aux = mmap(NULL, sizeof(data), PROT_WRITE, MAP_SHARED, fd, 0);
+	globalData = mmap(NULL, sizeof(globalData), PROT_WRITE, MAP_SHARED, globalDataDescriptor, 0);
+   	if (globalData == MAP_FAILED) {
+      	printf("Map failed in write process: %s\n", strerror(errno));
+      	exit(1);
+   	}
 
-	if (data == MAP_FAILED) {
-		printf("Map failed in write process: %s\n", strerror(errno));
-		exit(1);	
-	}
+	globalData->produce = 1;
+	globalData->bufferSize = buffSize;
+	globalData->lastProduced = buffSize - 1; 
 
-	memcpy(aux, data, sizeof(data));
+	close(globalDataDescriptor);
 
-
-	close(fd);
-
-
-}//end createGlobalData
-
+} // End createGlobalData
 
 void createSemaphores() {
 	//Producer semaphore
@@ -139,14 +135,13 @@ int main(int argc, char *argv[]) {
 	
 	//Decode arguments
 	checkParameters(argc, argv);
-
 	//Create local buffer pointer
 	struct BufferData buffer[buffSize];
 
 	//Create shared resouces
 	createSharedMemory(buffer);
 	createSemaphores();
-	createGlobalData();
+	createGlobalData(buffSize);
 
 	//print process information
 	puts("Initializer.c running...");
