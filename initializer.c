@@ -17,31 +17,14 @@
 #include <sys/types.h>
 #include <errno.h>
 
+#include "structures.h"
+
 // Arguments:
 // -s [buffer size]
 // -n [buffer name]
 
-#define PRODUCER_SEMAPHORE_NAME "/producerSemaphore"
-#define CONSUMER_SEMAPHORE_NAME "/consumerSemaphore"
-char * buffName;
-int buffSize;
-
-struct BufferData {
-	long producerID;
-	char date[80];
-	int number;
-	char message[1024];
-};
-
-
-struct GlobalData {
-	int lastConsumed;
-	int lastProduced;
-	int activeProducers;
-	int activeConsumers;
-	int produce;
-	int bufferSize;
-};
+char * bufferName;
+int bufferSize;
 
 void checkParameters(int argc, char *argv[]){
 
@@ -62,14 +45,14 @@ void checkParameters(int argc, char *argv[]){
 		//printf("Valor %i: %s\n", i, argv[i]); 
 		if (strcmp(argv[i], "-s") == 0) {
 			if (argv[i+1] != NULL) {
-				buffSize = strtol(argv[i+1], NULL, 10);
+				bufferSize = strtol(argv[i+1], NULL, 10);
 				//printf("Buffer size: %d", buffSize);
 			} // if
 		} // if
 
 		if (strcmp(argv[i], "-n") == 0) {
 			if (argv[i+1] != NULL) {
-				buffName = argv[i+1];
+				bufferName = argv[i+1];
 				//printf("Buffer name: %s\n", buffname);
 			} // if
 		} // if
@@ -77,78 +60,77 @@ void checkParameters(int argc, char *argv[]){
 
 } // Fin de checkParameters
 
-void createSharedMemory (struct BufferData *buffer) {
+void createSharedMemory () {
 
-	int fd;
-	fd = shm_open (buffName, O_CREAT | O_RDWR  , 00700); /* create s.m object*/
-	if(fd == -1) {
+	int bufferDataDescriptor;
+	bufferDataDescriptor = shm_open (bufferName, O_CREAT | O_RDWR  , 00700); 
+	if(bufferDataDescriptor == -1) {
 		printf("Error file descriptor \n");
 		exit(1);
 	} // if
 
-	if(-1 == ftruncate(fd, sizeof(buffer))) {
+	int memorySize = bufferSize * sizeof(BufferData);
+	if(-1 == ftruncate(bufferDataDescriptor, memorySize)) {
 		printf("Error shared memory cannot be resized \n");
 		exit(1);
 	} // if
 
-	close(fd);
+	close(bufferDataDescriptor);
 
 } // Fin de createSharedMemory
 
-void createGlobalData(int bufferSize) {
-
-	struct GlobalData *globalData;
+void createGlobalData() {
 
 	int globalDataDescriptor;
-	globalDataDescriptor = shm_open ("GlobalData", O_CREAT | O_RDWR  , 00700); /* create s.m object*/
+	globalDataDescriptor = shm_open (GLOBAL_DATA_SHM_NAME, O_CREAT | O_RDWR  , 00700);
 	if(globalDataDescriptor == -1) {
 		printf("Error file descriptor \n");
 		exit(1);
 	} // if
 
-	if(-1 == ftruncate(globalDataDescriptor, sizeof(globalData))) {
+	int memorySize = sizeof(GlobalData);
+	if(-1 == ftruncate(globalDataDescriptor, memorySize)) {
 		printf("Error shared memory cannot be resized \n");
 		exit(1);
 	} // if
 
-	globalData = mmap(NULL, sizeof(globalData), PROT_WRITE, MAP_SHARED, globalDataDescriptor, 0);
+	GlobalDataPointer globalData = mmap(NULL, memorySize, PROT_WRITE, MAP_SHARED, globalDataDescriptor, 0);
    	if (globalData == MAP_FAILED) {
       	printf("Map failed in write process: %s\n", strerror(errno));
       	exit(1);
    	}
 
 	globalData->produce = 1;
-	globalData->bufferSize = buffSize;
-	globalData->lastProduced = buffSize - 1; 
+	globalData->bufferSize = bufferSize;
+	globalData->lastProduced = bufferSize - 1; 
 
 	close(globalDataDescriptor);
 
 } // End createGlobalData
 
 void createSemaphores() {
+	
 	//Producer semaphore
-	sem_t *producerSemaphore = sem_open(PRODUCER_SEMAPHORE_NAME, O_CREAT, 0644, buffSize);
-	sem_t *consumerSemaphore = sem_open(CONSUMER_SEMAPHORE_NAME, O_CREAT, 0644, 0);	
-}
+	sem_t *producerSemaphore = sem_open(PRODUCER_SEMAPHORE_NAME, O_CREAT, 0644, bufferSize);
+	sem_t *consumerSemaphore = sem_open(CONSUMER_SEMAPHORE_NAME, O_CREAT, 0644, 0);
+
+} // End of createSemaphores
 
 int main(int argc, char *argv[]) {
 	
 	//Decode arguments
 	checkParameters(argc, argv);
-	//Create local buffer pointer
-	struct BufferData buffer[buffSize];
 
 	//Create shared resouces
-	createSharedMemory(buffer);
+	createSharedMemory();
 	createSemaphores();
-	createGlobalData(buffSize);
+	createGlobalData();
 
 	//print process information
-	puts("Initializer.c running...");
+	puts("\nInitializer.c running...\n");
 	pid_t pid = getpid();//Get process PID
-	printf("Buffer name: %s", buffName);
-	printf("Buffer size: %i\n", buffSize);
-	printf("sizeof(buffer) %li\n", sizeof(buffer));
+	printf("Buffer name: %s", bufferName);
+	printf("Buffer size: %i\n", bufferSize);
 
 	return 0;
 } // Fin de main

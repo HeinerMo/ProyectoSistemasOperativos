@@ -16,25 +16,7 @@
 #include <string.h>
 #include "semaphore.h"
 
-#define PRODUCER_SEMAPHORE_NAME "/producerSemaphore"
-#define CONSUMER_SEMAPHORE_NAME "/consumerSemaphore"
-
-
-struct BufferData {
-	long producerID;
-	char date[80];
-	int number;
-	char message[1024];
-};
-
-struct GlobalData {
-	int lastConsumed;
-	int lastProduced;
-	int activeProducers;
-	int activeConsumers;
-	int produce;
-	int bufferSize;
-};
+#include "structures.h"
 
 void endLine(char *message, int length) { //FIXME Borrar
 
@@ -47,44 +29,15 @@ void endLine(char *message, int length) { //FIXME Borrar
 
 } // End of endLine
 
-struct BufferData *loadBufferData (int bufferDataDescriptor) {
-
-	struct BufferData *bufferData;
-	struct stat shmobj_st;
-
-	if (bufferDataDescriptor == -1)
-	{
-		printf("Error file descriptor %s\n", strerror(errno));
-		exit(1);
-	}
-
-	if (fstat(bufferDataDescriptor, &shmobj_st) == -1)
-	{
-		printf(" error fstat \n");
-		exit(1);
-	}
-
-	bufferData = mmap(NULL, shmobj_st.st_size, PROT_READ, MAP_SHARED, bufferDataDescriptor, 0);
-	if (bufferData == MAP_FAILED)
-	{
-		printf("Map failed in read process: %s\n", strerror(errno));
-		exit(1);
-	}
-
-	return bufferData;
-
-} // End of loadBufferData
-
-struct GlobalData *loadGlobalData(int globalDataDescriptor) {
-
-	struct GlobalData *globalData;
+GlobalData *loadGlobalData(int globalDataDescriptor) {
 
    	if (globalDataDescriptor == -1) {
     	printf("Error file descriptor %s\n", strerror(errno));
       	exit(1);
    	}
 
-   	globalData = mmap(NULL, sizeof(globalData), PROT_WRITE, MAP_SHARED, globalDataDescriptor, 0);
+	int memorySize = sizeof(GlobalData);
+   	GlobalDataPointer globalData = mmap(NULL, memorySize, PROT_WRITE, MAP_SHARED, globalDataDescriptor, 0);
    	if (globalData == MAP_FAILED) {
       	printf("Map failed in write process: %s\n", strerror(errno));
       	exit(1);
@@ -94,27 +47,43 @@ struct GlobalData *loadGlobalData(int globalDataDescriptor) {
 
 } // End of loadGlobalData
 
-char* consume (int bufferDataDescriptor, int globalDataDescriptor) {
+// FIXME CAMBIAR LOS PERMISOS A SÓLO LECTURA
+BufferData *loadBufferData(int bufferDataDescriptor, int bufferSize) {
 
-	struct BufferData *bufferData = loadBufferData(bufferDataDescriptor);
-	struct GlobalData *globalData = loadGlobalData(globalDataDescriptor);
-	struct BufferData *auxBufferData;
+   	if (bufferDataDescriptor == -1) {
+    	printf("Error file descriptor %s\n", strerror(errno));
+      	exit(1);
+   	}
+
+	int memorySize = bufferSize * sizeof(BufferData);
+   	BufferDataPointer bufferData = mmap(NULL, memorySize, PROT_WRITE, MAP_SHARED, bufferDataDescriptor, 0);
+   	if (bufferData == MAP_FAILED) {
+      	printf("Map failed in write process: %s\n", strerror(errno));
+      	exit(1);
+   	}
+
+    return bufferData;
+
+} // End of loadBufferData
+
+char* consume (GlobalDataPointer globalData, BufferDataPointer bufferData) {
+
+	BufferData *auxBufferData;
 
 	int index = globalData->lastProduced; //TODO cargar el puntero de los consumidores de la memoria
-	int lastConsumed = globalData->lastConsumed + 1;
-	memcpy(globalData->lastConsumed, lastConsumed, sizeof(lastConsumed));
+
+	globalData->lastConsumed = globalData->lastConsumed + 1;
 
 	auxBufferData = &bufferData[index];
 	char data[2048];
 
-	sprintf(data, "ID Productor: %s\n Hora y Fecha: %s\n Número mágico: %d\n",
+	sprintf(data, "ID Productor: %ld\n Hora y Fecha: %s\n Número mágico: %d\n",
 		       	auxBufferData->producerID, auxBufferData->date, auxBufferData->number);
-	char *temp = strdup(data);
+	char *bufferMessage = strdup(data);
 
-	return temp;
+	return bufferMessage;
 
 } // End of consume
-
 
 int main(int argc, char *argv[]) {
 
@@ -132,30 +101,24 @@ int main(int argc, char *argv[]) {
 	fgets(buffName, lenght, stdin);
 	endLine(buffName, lenght);
 
-	int bufferDataDescriptor = shm_open(buffName, O_RDONLY, 00400); /* open s.m object*/
-	int globalDataDescriptor = shm_open("GlobalData", O_RDONLY, 00600); 
+	int bufferDataDescriptor = shm_open(buffName, O_RDWR, 00200); 
+	int globalDataDescriptor = shm_open(GLOBAL_DATA_SHM_NAME, O_RDWR, 00200); 
+	GlobalDataPointer globalData = loadGlobalData(globalDataDescriptor);
+	BufferDataPointer bufferData = loadBufferData(bufferDataDescriptor, globalData->bufferSize);
 
 	//Open semaphores
-
-	sem_t *consumers = sem_open(CONSUMER_SEMAPHORE_NAME, O_CREAT, 0644, 3);
-	sem_t *producers = sem_open(PRODUCER_SEMAPHORE_NAME, O_CREAT, 0644, 3);
-
-
-
-	//Prueba
-	//struct GlobalData *globalData;
-	//globalData = mmap(NULL, shmobj_st.st_size, PROT_READ, MAP_SHARED, fd, 0);
-	
+	sem_t *consumersSem = sem_open(CONSUMER_SEMAPHORE_NAME, O_CREAT, 0644, 3);
+	sem_t *producersSem = sem_open(PRODUCER_SEMAPHORE_NAME, O_CREAT, 0644, 3);
 
 	while (1) {
-		sem_wait(consumers);
+		sem_wait(consumersSem);
 
 		//inicio región crítica
-		char* ptr = consume(bufferDataDescriptor, globalDataDescriptor);
-		printf("%s \n", ptr);
+		char* bufferMessage = consume(globalData, bufferData);
+		printf("%s \n", bufferMessage);
 		//fin región crítica
 
-		sem_post(producers);
+		sem_post(producersSem);
 	} // while
 
 	close(bufferDataDescriptor);
