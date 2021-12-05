@@ -115,6 +115,11 @@ int main(int argc, char *argv[]) {
 			sem_post(producersSem);
 		}
 
+		if (globalData->activeProducers == 0) {
+			sem_wait(producersSem);
+			sem_post(consumersSem);
+		}
+
 		if (globalData->activeConsumers == 0 && globalData->activeProducers == 0) {
 			char instruction[1024];
 			sprintf(instruction, "rm /dev/shm/%s", bufferName);
