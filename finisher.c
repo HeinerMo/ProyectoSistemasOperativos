@@ -14,6 +14,7 @@
 #include <string.h>
 #include <time.h>
 #include "structures.h"
+#include "semaphore.h"
 
 char *bufferName;
 
@@ -96,6 +97,10 @@ int main(int argc, char *argv[]) {
 	//Decode arguments
 	checkParameters(argc, argv);
 
+	//Open semaphores
+	sem_t *consumersSem = sem_open(CONSUMER_SEMAPHORE_NAME, O_CREAT, 0644, 3);
+	sem_t *producersSem = sem_open(PRODUCER_SEMAPHORE_NAME, O_CREAT, 0644, 3);
+
 	int bufferDataDescriptor = shm_open(bufferName, O_RDWR, 00200); 
 	int globalDataDescriptor = shm_open(GLOBAL_DATA_SHM_NAME, O_RDWR, 00200); 
 	GlobalDataPointer globalData = loadGlobalData(globalDataDescriptor);
@@ -104,6 +109,11 @@ int main(int argc, char *argv[]) {
 	globalData->stateSignal = 1;
 
 	while(1) {
+		
+		if (globalData->activeConsumers == 0) {
+			sem_wait(consumersSem);
+			sem_post(producersSem);
+		}
 
 		if (globalData->activeConsumers == 0 && globalData->activeProducers == 0) {
 			char instruction[1024];
