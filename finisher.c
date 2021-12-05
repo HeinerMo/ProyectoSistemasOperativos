@@ -8,8 +8,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
-#include <sys/stat.h> /* For mode constants */
-#include <fcntl.h>    /* For O_* constants */
+#include <sys/stat.h>
+#include <fcntl.h> 
 #include <errno.h>
 #include <string.h>
 #include <time.h>
@@ -17,6 +17,7 @@
 
 char *bufferName;
 
+// Verify that the parameters have been entered correctly
 void checkParameters(int argc, char *argv[]){
 
 	//If the user enters -help show the argument sintax	
@@ -44,10 +45,11 @@ void checkParameters(int argc, char *argv[]){
 
 } // Fin de checkParameters
 
+// Load shared global data memory
 GlobalData *loadGlobalData(int globalDataDescriptor) {
 
    	if (globalDataDescriptor == -1) {
-    	puts("No existe esa memoria compartida");
+    	printf("There is no shared memory called \"%s\"\n", bufferName);
       	exit(1);
    	}
 
@@ -62,6 +64,26 @@ GlobalData *loadGlobalData(int globalDataDescriptor) {
 
 } // End of loadGlobalData
 
+// Load shared memory buffer
+BufferData *loadBufferData(int bufferDataDescriptor, int bufferSize) {
+
+   	if (bufferDataDescriptor == -1) {
+    	printf("There is no shared memory called \"%s\"\n", bufferName);
+      	exit(1);
+   	}
+
+	int memorySize = bufferSize * sizeof(BufferData);
+   	BufferDataPointer bufferData = mmap(NULL, memorySize, PROT_WRITE, MAP_SHARED, bufferDataDescriptor, 0);
+   	if (bufferData == MAP_FAILED) {
+      	printf("Map failed in write process: %s\n", strerror(errno));
+      	exit(1);
+   	}
+
+    return bufferData;
+
+} // End of loadBufferData
+
+// Get the time since 00:00:00 UTC, January 1, 1970 in seconds
 long getTimeSec () {
 
 	time_t timeNow;
@@ -74,8 +96,11 @@ int main(int argc, char *argv[]) {
 	//Decode arguments
 	checkParameters(argc, argv);
 
-	int globalDataDescriptor = shm_open(GLOBAL_DATA_SHM_NAME, O_RDWR, 00200);
+	int bufferDataDescriptor = shm_open(bufferName, O_RDWR, 00200); 
+	int globalDataDescriptor = shm_open(GLOBAL_DATA_SHM_NAME, O_RDWR, 00200); 
 	GlobalDataPointer globalData = loadGlobalData(globalDataDescriptor);
+	BufferDataPointer bufferData = loadBufferData(bufferDataDescriptor, globalData->bufferSize);
+
 	globalData->stateSignal = 1;
 
 	while(1) {
@@ -103,16 +128,17 @@ int main(int argc, char *argv[]) {
 			"Total de consumidores: %i\n"
 			"Consumidores eliminados por llave: %i\n"
 			"Tiempo esperando total: %ld segundos\n"
-			"Tiempo de usuario total: %ld segundos\n" 
+			"Tiempo de usuario total: %ld segundos\n"
+			"Tiempo total de bloqueos por semáforos: %ld segundos\n"  
 		  COLOR_GREEN "=======================================\n\n" COLOR_RESET,
 			globalData->totalMsgCount,
 			globalData->producerTotal,
 			globalData->consumersTotal,
 			globalData->deletedByKey,
 			globalData->totalWaitTime,
-			((getTimeSec() - globalData->totalUserTime)+1)
+			((getTimeSec() - globalData->totalUserTime)+1),
+			globalData->totalBlockedTime
 		);
 
-	// Restar el tiempo actual a totalUserTime
 	return 0;
 } // End of main

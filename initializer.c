@@ -12,8 +12,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/mman.h>
-#include <sys/stat.h>        /* For mode constants */
-#include <fcntl.h>           /* For O_* constants */
+#include <sys/stat.h> 
+#include <fcntl.h> 
 #include <sys/types.h>
 #include <errno.h>
 #include <time.h>
@@ -27,6 +27,7 @@
 char * bufferName;
 int bufferSize;
 
+// Verify that the parameters have been entered correctly
 void checkParameters(int argc, char *argv[]){
 
 	//If the user enters -help show the argument sintax	
@@ -61,12 +62,13 @@ void checkParameters(int argc, char *argv[]){
 
 } // Fin de checkParameters
 
+// Create the buffer in shared memory
 void createSharedMemory () {
 
 	int bufferDataDescriptor;
 	bufferDataDescriptor = shm_open (bufferName, O_CREAT | O_RDWR  , 00700); 
 	if(bufferDataDescriptor == -1) {
-		printf("Error file descriptor \n");
+		printf("Error file descriptor to Buffer Data\n");
 		exit(1);
 	} // if
 
@@ -80,6 +82,7 @@ void createSharedMemory () {
 
 } // Fin de createSharedMemory
 
+// Get the time since 00:00:00 UTC, January 1, 1970 in seconds
 long getTimeSec () {
 
 	time_t timeNow;
@@ -87,12 +90,13 @@ long getTimeSec () {
 
 } // End getTime
 
+// Create shared global data memory
 void createGlobalData() {
 
 	int globalDataDescriptor;
 	globalDataDescriptor = shm_open (GLOBAL_DATA_SHM_NAME, O_CREAT | O_RDWR  , 00700);
 	if(globalDataDescriptor == -1) {
-		printf("Error file descriptor \n");
+		printf("Error file descriptor to Global Data\n");
 		exit(1);
 	} // if
 

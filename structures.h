@@ -38,6 +38,7 @@ struct GlobalDataStruct {
 	int consumersTotal;
 	int deletedByKey;
 	long totalWaitTime;
+	long totalBlockedTime;
 	long totalUserTime;
 };
 
