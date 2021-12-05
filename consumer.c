@@ -19,21 +19,50 @@
 
 #include "structures.h"
 
-void endLine(char *message, int length) { //FIXME Borrar
+int msgConsumed = 0;
+long waitTimeSum = 0;
 
-	for (int i = 0; i < length; i++) {
-		if (message[i] == '\n') {
-			message[i] = '\0';
-			break;
+char *bufferName;
+int avgNumber = 0;
+long userTime = 0;
+
+void checkParameters(int argc, char *argv[]){
+
+	//If the user enters -help show the argument sintax	
+	if (argc > 1 && strcmp(argv[1], "-help") == 0) {
+		puts("Parameters: \n -n \"Buffer name\"\n -t \"AVG Time\"");
+		exit(1);
+	} // if
+
+	//if there are too few arguments exit
+	if (argc < 5) {
+		puts("ERROR: Too few arguments. Type -help to get the list of parameters");
+		exit(1);
+	} // if
+
+
+	for (int i = 1; i < argc; i++) {
+		
+		if (strcmp(argv[i], "-t") == 0) {
+			if (argv[i+1] != NULL) {
+				avgNumber = strtol(argv[i+1], NULL, 10);
+			} // if
+		} // if 
+
+		if (strcmp(argv[i], "-n") == 0) {
+			if (argv[i+1] != NULL) {
+				bufferName = argv[i+1];
+			} // if
 		} // if
+
 	} // for i
 
-} // End of endLine
+} // Fin de checkParameters
 
 GlobalData *loadGlobalData(int globalDataDescriptor) {
 
    	if (globalDataDescriptor == -1) {
-    	printf("Error file descriptor %s\n", strerror(errno));
+    	printf("No existe esa memoria compartida");
       	exit(1);
    	}
 
@@ -52,7 +81,7 @@ GlobalData *loadGlobalData(int globalDataDescriptor) {
 BufferData *loadBufferData(int bufferDataDescriptor, int bufferSize) {
 
    	if (bufferDataDescriptor == -1) {
-    	printf("Error file descriptor %s\n", strerror(errno));
+    	printf("No existe esa memoria compartida");
       	exit(1);
    	}
 
@@ -77,20 +106,24 @@ char* consume (GlobalDataPointer globalData, BufferDataPointer bufferData, sem_t
 	auxBufferData = &bufferData[index];
 	char data[2048];
 
-	sprintf(data, "ID Productor: %ld\n"
-					"Hora y Fecha: %s\n"
-					"Número mágico: %d \n"
-					"Consumidores activos: %i\n"	
-					"Productores activos: %i\n",
+	sprintf(data, COLOR_CYAN "====Se recibió un mensaje del el Buffer====\n\n" COLOR_RESET
+					COLOR_GREEN "ID Productor: " COLOR_RESET "%ld\n"
+					COLOR_GREEN "Hora y Fecha: " COLOR_RESET "%s\n"
+					COLOR_GREEN "Número mágico: " COLOR_RESET "%d \n"
+					COLOR_GREEN "Consumidores activos: " COLOR_RESET "%i\n"	
+					COLOR_GREEN "Productores activos: " COLOR_RESET "%i\n"
+				  COLOR_CYAN "===========================================\n\n" COLOR_RESET,
 		       		auxBufferData->producerID, 
 					auxBufferData->date, 
 					auxBufferData->number, 
 					globalData->activeConsumers,
 					globalData->activeProducers);
 
-    pid_t pid = getpid();
-	if (globalData->stateSignal==1 || (pid%10) == auxBufferData->number) {
-		return "end";
+	if ((getpid()%10) == auxBufferData->number) {
+		globalData->deletedByKey += 1;
+		return "Número Mágico";
+	} else if (globalData->stateSignal==1) {
+		return "Por el Finalizador";
 	}
 
 	char *bufferMessage = strdup(data);
@@ -107,16 +140,13 @@ long getTimeSec () {
 
 
 int main(int argc, char *argv[]) {
-	/*TODO
-	  Parámetros
-	 */
-	int lenght = 2048;
-	char buffName[lenght];
-	printf("%s", "Enter the name of the buffer: ");
-	fgets(buffName, lenght, stdin);
-	endLine(buffName, lenght);
 
-	int bufferDataDescriptor = shm_open(buffName, O_RDWR, 00200); 
+	//Decode arguments
+	checkParameters(argc, argv);
+
+	userTime = getTimeSec();
+
+	int bufferDataDescriptor = shm_open(bufferName, O_RDWR, 00200); 
 	int globalDataDescriptor = shm_open(GLOBAL_DATA_SHM_NAME, O_RDWR, 00200); 
 	GlobalDataPointer globalData = loadGlobalData(globalDataDescriptor);
 	BufferDataPointer bufferData = loadBufferData(bufferDataDescriptor, globalData->bufferSize);
@@ -140,13 +170,32 @@ int main(int argc, char *argv[]) {
 
 		sem_wait(writeSem);	// Wait writeSem
 		globalData->totalWaitTime += getTimeSec() - startTime;
+		waitTimeSum += getTimeSec() - startTime;
 		sem_post(writeSem); // Post writeSem
 
 		char* bufferMessage = consume(globalData, bufferData, writeSem);
-		
-		if (strcmp(bufferMessage, "end") == 0) {
+		/*muestra su identificaci´on,
+		raz´on de suspensi´on, y algunas estad´ısticas b´asicas (n´umero de mensajes consumidos, acumulado
+		de tiempos esperados, acumulado de tiempo que estuvo bloqueado, tiempo de usuario . . . ).*/
+		if (strcmp(bufferMessage, "Número Mágico") == 0 || strcmp(bufferMessage, "Por el Finalizador") == 0) {
+			userTime = getTimeSec() - userTime;
+			printf("\n" COLOR_RED "====Consumidor Finalizado====" COLOR_RESET "\n\n"
+					"Mi PID: %i\n"
+					"Finalizado por: %s\n"
+					"Total de mensajes consumidos: %i segundos\n"
+					"Tiempo en espera: %ld segundos\n"
+					"Tiempo de usuario: %ld segundos\n"
+				   		COLOR_RED "=============================" COLOR_RESET "\n\n",
+					getpid(),
+					bufferMessage,
+					msgConsumed,
+					waitTimeSum,
+					userTime
+				);
+			sem_post(producersSem);
 			break;
 		} else {
+			msgConsumed += 1;
 			printf("%s \n", bufferMessage);
 		}
 

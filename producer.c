@@ -21,18 +21,20 @@
 
 char *bufferName;
 char *mode;
-int avgNumber = 3;
+int avgNumber = 0;
+int msgProduced = 0;
+long waitTimeSum = 0;
 
 void checkParameters(int argc, char *argv[]){
 
 	//If the user enters -help show the argument sintax	
 	if (argc > 1 && strcmp(argv[1], "-help") == 0) {
-		puts("Parameters: \n -a = Automatic mode \n -m = Manual mode \n -n \"Buffer name\"");
+		puts("Parameters: \n -a = Automatic mode \n -m = Manual mode \n -n \"Buffer name\"\n -t \"AVG Time\"");
 		exit(1);
 	} // if
 
 	//if there are too few arguments exit
-	if (argc < 4) {
+	if (argc < 6) {
 		puts("ERROR: Too few arguments. Type -help to get the list of parameters");
 		exit(1);
 	} // if
@@ -43,6 +45,12 @@ void checkParameters(int argc, char *argv[]){
 		if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "-a") == 0) {
 			if (argv[i] != NULL) {
 				mode = argv[i];
+			} // if
+		} // if 
+
+		if (strcmp(argv[i], "-t") == 0) {
+			if (argv[i+1] != NULL) {
+				avgNumber = strtol(argv[i+1], NULL, 10);
 			} // if
 		} // if 
 
@@ -121,12 +129,12 @@ void writeProcess(BufferDataPointer bufferData, GlobalDataPointer globalData) {
 
 	produce(auxBufferData);
 
-	printf("====Se Ingresó un mensaje en el Buffer====\n\n"
-			"PID: %li\n"
-			"Indice del buffer: %i\n"
-			"Consumidores activos: %i\n"	
-			"Productores activos: %i\n"
-			"==========================================\n\n",
+	printf(COLOR_YELLOW "====Se Ingresó un mensaje en el Buffer====\n\n" COLOR_RESET
+			COLOR_GREEN "PID: " COLOR_RESET "%li\n"
+			COLOR_GREEN "Indice del buffer: " COLOR_RESET "%i\n"
+			COLOR_GREEN "Consumidores activos: " COLOR_RESET "%i\n"	
+			COLOR_GREEN "Productores activos: " COLOR_RESET "%i\n"
+			COLOR_YELLOW "==========================================\n\n" COLOR_RESET,
 			auxBufferData->producerID,
 		    index,
 			globalData->activeConsumers,
@@ -158,9 +166,8 @@ int actionMethod (BufferDataPointer bufferData, GlobalDataPointer globalData, se
 		writeProcess(bufferData, globalData);
 	}
 	sem_wait(writeSem);
-	//begining critical region		
 	globalData->totalMsgCount += 1;
-	//end critical region
+	msgProduced += 1;
 	sem_post(writeSem);
 
 	return 1;
@@ -208,9 +215,20 @@ int main(int argc, char *argv[]) {
 
 		sem_wait(writeSem);	// Wait writeSem
 		globalData->totalWaitTime += getTimeSec() - startTime;
+		waitTimeSum += getTimeSec() - startTime;
 		sem_post(writeSem); // Post writeSem
 
 		if (actionMethod(bufferData, globalData, writeSem) == 0) {
+			printf(COLOR_RED "\n====Productor Finalizado====\n\n" COLOR_RESET
+					"Mi PID: %i\n"
+					"Tiempo de espera: %ld segundos\n"
+					"Total de mensajes producidos: %i\n"
+				   COLOR_RED "================================\n\n" COLOR_RESET, 
+					getpid(),
+					waitTimeSum,
+					msgProduced
+				);
+			sem_post(consumersSem);
 			break;
 		}
 		sem_post(consumersSem); // Post consumerSem

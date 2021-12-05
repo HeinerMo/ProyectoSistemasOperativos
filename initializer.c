@@ -126,7 +126,7 @@ void createSemaphores() {
 
 } // End of createSemaphores
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {	
 
 	//Decode arguments
 	checkParameters(argc, argv);
@@ -135,12 +135,6 @@ int main(int argc, char *argv[]) {
 	createSharedMemory();
 	createSemaphores();
 	createGlobalData();
-
-	//print process information
-	puts("\nInitializer.c running...\n");
-	pid_t pid = getpid();//Get process PID
-	printf("Buffer name: %s", bufferName);
-	printf("Buffer size: %i\n", bufferSize);
-
+	
 	return 0;
 } // Fin de main
