@@ -3,13 +3,14 @@
 
 #define PRODUCER_SEMAPHORE_NAME "producerSemaphore"
 #define CONSUMER_SEMAPHORE_NAME "consumerSemaphore"
+#define WRITE_SEMAPHORE_NAME "writeSemaphore"
 #define GLOBAL_DATA_SHM_NAME "GlobalData"
 
 struct BufferDataStruct {
 	long producerID;
 	char date[80];
 	int number;
-	char message[1024];
+	//char message[1024];
 };
 
 typedef struct BufferDataStruct BufferData; // Uso de la estructura del BufferData
@@ -21,8 +22,16 @@ struct GlobalDataStruct {
 	int lastProduced;
 	int activeProducers;
 	int activeConsumers;
-	int produce;
 	int bufferSize;
+	int stateSignal; // 1 = Finalizar o 0 = Ejecutando
+	int totalMsgCount;
+	int producerTotal;
+	int consumersTotal;
+	int deletedByKey;
+	long totalWaitTime;
+	long totalUserTime;
+	long totalKernelTime;
+
 };
 
 typedef struct GlobalDataStruct GlobalData; // Uso de la estructura del GlobalData

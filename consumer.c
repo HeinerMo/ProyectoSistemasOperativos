@@ -15,6 +15,7 @@
 #include <errno.h>
 #include <string.h>
 #include "semaphore.h"
+#include <time.h>
 
 #include "structures.h"
 
@@ -66,34 +67,48 @@ BufferData *loadBufferData(int bufferDataDescriptor, int bufferSize) {
 
 } // End of loadBufferData
 
-char* consume (GlobalDataPointer globalData, BufferDataPointer bufferData) {
+char* consume (GlobalDataPointer globalData, BufferDataPointer bufferData, sem_t *writeSem) {
 
 	BufferData *auxBufferData;
 
-	int index = globalData->lastProduced; //TODO cargar el puntero de los consumidores de la memoria
-
-	globalData->lastConsumed = globalData->lastConsumed + 1;
+	int index = globalData->lastConsumed;
+	globalData->lastConsumed = (globalData->lastConsumed + 1) % globalData->bufferSize;
 
 	auxBufferData = &bufferData[index];
 	char data[2048];
 
-	sprintf(data, "ID Productor: %ld\n Hora y Fecha: %s\n Número mágico: %d\n",
-		       	auxBufferData->producerID, auxBufferData->date, auxBufferData->number);
-	char *bufferMessage = strdup(data);
+	sprintf(data, "ID Productor: %ld\n"
+					"Hora y Fecha: %s\n"
+					"Número mágico: %d \n"
+					"Consumidores activos: %i\n"	
+					"Productores activos: %i\n",
+		       		auxBufferData->producerID, 
+					auxBufferData->date, 
+					auxBufferData->number, 
+					globalData->activeConsumers,
+					globalData->activeProducers);
 
+    pid_t pid = getpid();
+	if (globalData->stateSignal==1 || (pid%10) == auxBufferData->number) {
+		return "end";
+	}
+
+	char *bufferMessage = strdup(data);
 	return bufferMessage;
 
 } // End of consume
 
+long getTimeSec () {
+
+	time_t timeNow;
+	return time(&timeNow);
+
+} // End getTime
+
+
 int main(int argc, char *argv[]) {
-
-	puts("Initializer.c running...");
-    pid_t pid = getpid();//Get process PID
-    printf("pid: %u\n", pid);//prints PID
-
 	/*TODO
 	  Parámetros
-	  Puntero de consumidor
 	 */
 	int lenght = 2048;
 	char buffName[lenght];
@@ -109,17 +124,40 @@ int main(int argc, char *argv[]) {
 	//Open semaphores
 	sem_t *consumersSem = sem_open(CONSUMER_SEMAPHORE_NAME, O_CREAT, 0644, 3);
 	sem_t *producersSem = sem_open(PRODUCER_SEMAPHORE_NAME, O_CREAT, 0644, 3);
+	sem_t *writeSem = sem_open(WRITE_SEMAPHORE_NAME, O_CREAT, 0644, 3);
+
+	//Increase the number of active consumers in the global counter
+	sem_wait(writeSem);		
+	globalData->activeConsumers += 1;
+	globalData->consumersTotal += 1;
+	sem_post(writeSem);
 
 	while (1) {
+
+		long startTime = getTimeSec();		
+
 		sem_wait(consumersSem);
 
-		//inicio región crítica
-		char* bufferMessage = consume(globalData, bufferData);
-		printf("%s \n", bufferMessage);
-		//fin región crítica
+		sem_wait(writeSem);	// Wait writeSem
+		globalData->totalWaitTime += getTimeSec() - startTime;
+		sem_post(writeSem); // Post writeSem
+
+		char* bufferMessage = consume(globalData, bufferData, writeSem);
+		
+		if (strcmp(bufferMessage, "end") == 0) {
+			break;
+		} else {
+			printf("%s \n", bufferMessage);
+		}
 
 		sem_post(producersSem);
+		
 	} // while
+
+	sem_wait(writeSem);
+	//Decrease the number of active producers on the global counter
+	globalData->activeConsumers -= 1;
+	sem_post(writeSem);
 
 	close(bufferDataDescriptor);
 

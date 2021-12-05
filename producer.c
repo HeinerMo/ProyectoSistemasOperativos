@@ -19,21 +19,47 @@
 
 #include "structures.h"
 
-void endLine(char *message, int length) {
+char *bufferName;
+char *mode;
+int avgNumber = 3;
 
-	for (int i = 0; i < length; i++) {
-		if (message[i] == '\n') {
-			message[i] = '\0';
-			break;
+void checkParameters(int argc, char *argv[]){
+
+	//If the user enters -help show the argument sintax	
+	if (argc > 1 && strcmp(argv[1], "-help") == 0) {
+		puts("Parameters: \n -a = Automatic mode \n -m = Manual mode \n -n \"Buffer name\"");
+		exit(1);
+	} // if
+
+	//if there are too few arguments exit
+	if (argc < 4) {
+		puts("ERROR: Too few arguments. Type -help to get the list of parameters");
+		exit(1);
+	} // if
+
+
+	for (int i = 1; i < argc; i++) {
+		
+		if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "-a") == 0) {
+			if (argv[i] != NULL) {
+				mode = argv[i];
+			} // if
+		} // if 
+
+		if (strcmp(argv[i], "-n") == 0) {
+			if (argv[i+1] != NULL) {
+				bufferName = argv[i+1];
+			} // if
 		} // if
-	}    // for i
 
-} // Fin de endLine
+	} // for i
 
-void produce(BufferDataPointer bufferData, char message[1024]) {
+} // Fin de checkParameters
+
+void produce(BufferDataPointer bufferData) {
 	
-	char *aux = strdup(message);
-	strcpy(bufferData->message, message);
+	//char *aux = strdup(message); // BORRAR
+	//strcpy(bufferData->message, message); // BORRAR
 	bufferData->producerID = getpid();
 
 	//using UNIX Epoch
@@ -86,58 +112,116 @@ BufferData *loadBufferData(int bufferDataDescriptor, int bufferSize) {
 
 } // End of loadBufferData
 
-void writeProcess(BufferDataPointer bufferData, GlobalDataPointer globalData, char message[1024]) {
+void writeProcess(BufferDataPointer bufferData, GlobalDataPointer globalData) {
 	
 	globalData->lastProduced = (globalData->lastProduced + 1) % globalData->bufferSize;
 	int index = globalData->lastProduced; 
 	
 	BufferData *auxBufferData = &bufferData[index];
 
-	produce(auxBufferData, message);
+	produce(auxBufferData);
 
-	BufferData *auxBufferDataDos = &bufferData[index]; // BORRAR
-	printf("PID: %ld\n", auxBufferDataDos->producerID); // BORRAR
-	printf("Date: %s\n", strdup(auxBufferDataDos->date)); // BORRAR
-	printf("Number: %i\n", auxBufferDataDos->number); // BORRAR
-	printf("Message: %s\n", strdup(auxBufferDataDos->message)); // BORRAR
+	printf("====Se Ingresó un mensaje en el Buffer====\n\n"
+			"PID: %li\n"
+			"Indice del buffer: %i\n"
+			"Consumidores activos: %i\n"	
+			"Productores activos: %i\n"
+			"==========================================\n\n",
+			auxBufferData->producerID,
+		    index,
+			globalData->activeConsumers,
+			globalData->activeProducers);
 
 } // End of writeProcess
 
-int main(int argc, char *argv[]) {
-	/*TODO
-		Subir producto a memoria compartida
+int actionMethod (BufferDataPointer bufferData, GlobalDataPointer globalData, sem_t *writeSem) {
 
-		Recibir nombre por parácompartida
-	 */
+	int totalMsgCount; // Listo
+	int ProducerTotal; // Listo
+	int ConsumersTotal; // Listo
+	int deletedByKey; // Listo
+	float totalWaitTime; // Listo
+	float totalUserTime; // Falta en ambos
+	float totalKernelTime; // Falta en ambos
+
+	if(globalData->stateSignal==1) {
+		return 0;
+	}
+
+	if (strcmp("-a", mode)==0) {
+		writeProcess(bufferData, globalData);
+		int waitTime = avgNumber;//rand() % (avgNumber * 2);
+		sleep(waitTime);
+	} else if (strcmp("-m", mode)==0) {
+		printf("%s", "Press Enter to generate a message\n");
+		getchar();
+		writeProcess(bufferData, globalData);
+	}
+	sem_wait(writeSem);
+	//begining critical region		
+	globalData->totalMsgCount += 1;
+	//end critical region
+	sem_post(writeSem);
+
+	return 1;
+
+} // End of actionMethod
+
+long getTimeSec () {
+
+	time_t timeNow;
+	return time(&timeNow);
+
+} // End getTime
+
+int main(int argc, char *argv[]) {
+
+	//Decode arguments
+	checkParameters(argc, argv);
 
 	srand(time(NULL)); //Change random number seed
-	int lenght = 1024;
-	char buffName[lenght];
-	printf("%s", "Enter the name of the buffer: ");
-	fgets(buffName, lenght, stdin);
-	endLine(buffName, lenght);
 
-	int bufferDataDescriptor = shm_open(buffName, O_RDWR, 00200);
+	int bufferDataDescriptor = shm_open(bufferName, O_RDWR, 00200);
 	int globalDataDescriptor = shm_open(GLOBAL_DATA_SHM_NAME, O_RDWR, 00200);
 	GlobalDataPointer globalData = loadGlobalData(globalDataDescriptor);
-	BufferDataPointer bufferData = loadBufferData(bufferDataDescriptor, globalData->bufferSize);
-	
+	BufferDataPointer bufferData = loadBufferData(bufferDataDescriptor, globalData->bufferSize);	
+
 	//Open semaphores
 	sem_t *consumersSem = sem_open(CONSUMER_SEMAPHORE_NAME, O_CREAT, 0644, 3);
 	sem_t *producersSem = sem_open(PRODUCER_SEMAPHORE_NAME, O_CREAT, 0644, 3);
+	sem_t *writeSem = sem_open(WRITE_SEMAPHORE_NAME, O_CREAT, 0644, 3);
+
+
+	//Increase the number of active producers in the global counter
+	sem_wait(writeSem);
+	//begining critical region		
+	globalData->activeProducers += 1;
+	globalData->producerTotal += 1;
+	//end critical region
+	sem_post(writeSem);
 
 	while (1) {
-		sem_wait(producersSem);
-		//begining critical region
-		char message[lenght];
-		printf("%s", "Enter some text: ");
-		fgets(message, lenght, stdin);
-		endLine(message, lenght);
-		writeProcess(bufferData, globalData, message);
-		//end critical region
-		sem_post(consumersSem);
+
+		long startTime = getTimeSec();		
+
+		sem_wait(producersSem); // Wait producerSem
+
+		sem_wait(writeSem);	// Wait writeSem
+		globalData->totalWaitTime += getTimeSec() - startTime;
+		sem_post(writeSem); // Post writeSem
+
+		if (actionMethod(bufferData, globalData, writeSem) == 0) {
+			break;
+		}
+		sem_post(consumersSem); // Post consumerSem
 	} // while
 
+	sem_wait(writeSem);
+	//Decrease the number of active producers on the global counter
+	globalData->activeProducers -= 1;
+	sem_post(writeSem);
+
+	// Close Files Descriptors
 	close(globalDataDescriptor);
 	close(bufferDataDescriptor);
 

@@ -39,6 +39,9 @@ int main(int argc, char *argv[]) {
 	system(instruction);
 	sprintf(instruction, "rm /dev/shm/sem.%s", PRODUCER_SEMAPHORE_NAME);
 	system(instruction);
+	sprintf(instruction, "rm /dev/shm/sem.%s", WRITE_SEMAPHORE_NAME);
+	system(instruction);
 
+	// Restar el tiempo actual a totalUserTime
 	return 0;
 } // End of main

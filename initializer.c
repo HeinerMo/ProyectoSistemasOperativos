@@ -16,6 +16,7 @@
 #include <fcntl.h>           /* For O_* constants */
 #include <sys/types.h>
 #include <errno.h>
+#include <time.h>
 
 #include "structures.h"
 
@@ -79,6 +80,13 @@ void createSharedMemory () {
 
 } // Fin de createSharedMemory
 
+long getTimeSec () {
+
+	time_t timeNow;
+	return time(&timeNow);
+
+} // End getTime
+
 void createGlobalData() {
 
 	int globalDataDescriptor;
@@ -100,9 +108,10 @@ void createGlobalData() {
       	exit(1);
    	}
 
-	globalData->produce = 1;
 	globalData->bufferSize = bufferSize;
 	globalData->lastProduced = bufferSize - 1; 
+	globalData->stateSignal = 0;
+	globalData->totalUserTime = getTimeSec();
 
 	close(globalDataDescriptor);
 
@@ -113,11 +122,12 @@ void createSemaphores() {
 	//Producer semaphore
 	sem_t *producerSemaphore = sem_open(PRODUCER_SEMAPHORE_NAME, O_CREAT, 0644, bufferSize);
 	sem_t *consumerSemaphore = sem_open(CONSUMER_SEMAPHORE_NAME, O_CREAT, 0644, 0);
+	sem_t *writeSemaphore = sem_open(WRITE_SEMAPHORE_NAME, O_CREAT, 0644, 1);
 
 } // End of createSemaphores
 
 int main(int argc, char *argv[]) {
-	
+
 	//Decode arguments
 	checkParameters(argc, argv);
 
